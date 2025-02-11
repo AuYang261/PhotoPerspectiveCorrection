@@ -58,7 +58,9 @@ def perspective_correction(image_path, output_path, q):
     original_img, scaled_img, closed, opened = preprocess(image_path)
     mask, masked_img = grabCut(opened)
     mask = cv2.resize(mask, (0, 0), fx=1 / scale, fy=1 / scale)
-    box, draw_img = utils.findContours_img(original_img, mask)
+    box, draw_img = utils.findContours_img(
+        original_img, mask, perspective_correction=False
+    )
     q.put((os.path.splitext(os.path.basename(image_path))[0], box))
     result_img = utils.Perspective_transform(box, original_img)
 

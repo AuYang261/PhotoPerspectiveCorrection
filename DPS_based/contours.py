@@ -42,7 +42,9 @@ def perspective_correction(image_path, output_path, q):
     original_img, scaled_img, gray_img, equalized, binary, closed, opened = preprocess(
         image_path
     )
-    box, draw_img = utils.findContours_img(original_img, opened)
+    box, draw_img = utils.findContours_img(
+        original_img, opened, perspective_correction=False
+    )
     q.put((os.path.splitext(os.path.basename(image_path))[0], box))
     result_img = utils.Perspective_transform(box, original_img)
 
