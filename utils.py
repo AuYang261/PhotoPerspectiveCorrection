@@ -1,10 +1,9 @@
 import cv2
 import numpy as np
-
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import os
-
-# import rawpy
+import rawpy
+import math
 
 pic_path = os.path.join(os.path.dirname(__file__), "datas", "input")
 out_path = os.path.join(os.path.dirname(__file__), "datas", "output")
@@ -196,6 +195,74 @@ def rotate_img(img, angle):
     M = cv2.getRotationMatrix2D((cols // 2, rows // 2), angle, 1)
     rotated = cv2.warpAffine(img, M, (cols, rows))
     return rotated
+
+
+def findContours_img(original_img, processed_img, perspective_correction=True):
+    contours, hierarchy = cv2.findContours(
+        processed_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE
+    )
+    sorted_c = sorted(contours, key=cv2.contourArea, reverse=True)
+    if perspective_correction:
+        for contour in sorted_c:
+            # 计算轮廓的周长
+            perimeter = cv2.arcLength(contour, True)
+            # 逼近多边形
+            approx = cv2.approxPolyDP(contour, 0.04 * perimeter, True)
+            # 筛选四边形
+            if len(approx) == 4:
+                box = np.int32(approx).reshape(4, 2)
+                break
+    else:
+        # 计算最大轮廓的旋转包围盒
+        c = sorted_c[0]
+        # 获取包围盒（中心点，宽高，旋转角度）
+        # 直接得到矩形而不是四边形，所以无法做到透视矫正，只是裁边
+        rect = cv2.minAreaRect(c)
+        # 计算面积占比,如果面积占比过大则取第二大的轮廓
+        height, width, channels = original_img.shape
+        if rect[1][0] * rect[1][1] / (height * width) > 0.9:
+            c = sorted_c[1]
+            rect = cv2.minAreaRect(c)
+        # 获取四个顶点坐标
+        box = np.int32(cv2.boxPoints(rect))
+    box = order_points(box)
+    draw_img = cv2.drawContours(original_img.copy(), contours, -1, (0, 0, 255), 3)
+    draw_img = draw_poly(draw_img, box)
+
+    # print("box[0]:", box[0])
+    # print("box[1]:", box[1])
+    # print("box[2]:", box[2])
+    # print("box[3]:", box[3])
+    return box, draw_img
+
+
+def Perspective_transform(box, original_img):
+    # 获取画框宽高(x=orignal_W,y=orignal_H)
+    orignal_H = math.ceil(
+        np.sqrt((box[3][1] - box[2][1]) ** 2 + (box[3][0] - box[2][0]) ** 2)
+    )
+    orignal_W = math.ceil(
+        np.sqrt((box[3][1] - box[0][1]) ** 2 + (box[3][0] - box[0][0]) ** 2)
+    )
+
+    # 原图中的四个顶点,与变换矩阵
+    pts1 = np.float32([box[1], box[2], box[3], box[0]])
+    pts2 = np.float32(
+        [
+            [0, 0],
+            [int(orignal_W + 1), 0],
+            [int(orignal_W + 1), int(orignal_H + 1)],
+            [0, int(orignal_H + 1)],
+        ]
+    )
+
+    # 生成透视变换矩阵；进行透视变换
+    M = cv2.getPerspectiveTransform(pts1, pts2)
+    result_img = cv2.warpPerspective(
+        original_img, M, (int(orignal_W + 3), int(orignal_H + 1))
+    )
+
+    return result_img
 
 
 def main():
